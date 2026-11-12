@@ -51,6 +51,13 @@ class SkinToolTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout)["version"], 1)
 
+    def test_shipped_examples(self):
+        assets = TOOL.parents[1] / "assets"
+        for name in ("example-skin", "sunny", "starlight"):
+            result = self.run_tool("validate", assets / name)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout)["version"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

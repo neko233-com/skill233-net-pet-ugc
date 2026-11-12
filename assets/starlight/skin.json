@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "name": "星光伙伴",
+  "leftPivotX": 0.32,
+  "armPivotY": 0.68,
+  "rightPivotX": 0.68,
+  "rightArmPivotY": 0.68,
+  "hairPivotX": 0.5,
+  "hairPivotY": 0.22,
+  "headPivotX": 0.5,
+  "headPivotY": 0.56,
+  "ahogePivotX": 0.5,
+  "ahogePivotY": 0.14
+}
