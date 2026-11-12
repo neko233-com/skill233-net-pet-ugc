@@ -7,7 +7,14 @@ description: Create, check, preview, and import local layered Net Pet character 
 
 Create a character from permitted artwork or produce original artwork with the available image tools. Establish the requested appearance and use independently painted layers on one shared transparent canvas. Repair overlaps at shoulders and neck; do not imply that slicing a flat picture produces a production-ready rig. Confirm the composite and movement visually. The runtime performs small rigid rotations, not skeletal animation.
 
-For a new six-layer skin, supply aligned `hair.png`, `body.png`, `left.png`, `right.png`, `head.png`, `ahoge.png` and `skin.json`. Read [the format and workflow](references/format.md) for the schema, layer order, pivots, practical checks, and v1 compatibility. Use `scripts/skin_tool.py` to prepare a new package from independently drawn PNGs, validate it, and generate a static composite. This script needs Python 3 and Pillow; if unavailable, tell the user how to install Pillow or use an equivalent tool. Never represent its static preview as motion validation.
+For a new six-layer skin, supply aligned `hair.png`, `body.png`, `left.png`, `right.png`, `head.png`, `ahoge.png` and `skin.json`. Read [the format and workflow](references/format.md) for the schema, layer order, pivots, practical checks, and v1 compatibility. On Windows, the following offline alternative uses PowerShell 7 and Windows .NET image decoding; it does not need Python, Pillow or network access. The output and preview must be new paths and the output's parent must exist. Never represent a static preview as motion validation.
+
+```powershell
+pwsh -NoProfile -File <skill>/scripts/skin_tool.ps1 -Action Prepare -Layers <layer-directory> -Output <new-directory> -Name "伙伴"
+pwsh -NoProfile -File <skill>/scripts/skin_tool.ps1 -Action Validate -Folder <new-directory> -Preview <new-preview.png>
+```
+
+Alternatively, `scripts/skin_tool.py` supports Python 3 with Pillow where those are already installed:
 
 ```powershell
 python <skill>/scripts/skin_tool.py prepare --layers <layer-directory> --output <new-directory> --name "伙伴"
