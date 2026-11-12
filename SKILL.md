@@ -1,18 +1,19 @@
 ---
 name: skill233-net-pet-ugc
-description: Create, validate, and import local layered character skins for the Net Pet desktop pet. Use when a user wants to make or adapt a Net Pet UGC skin.
+description: Create, check, preview, and import local layered Net Pet character skins. Use for Net Pet UGC creation or adaptation, not general image editing.
 ---
 
-# Net Pet UGC skins
+# Net Pet UGC
 
-Create a local layered skin from artwork the user may use. Establish the character, intended appearance, and available source images; use appropriate image-generation or art tools when creation is requested. Keep layers aligned on one transparent canvas and visually inspect the composite and joints. Do not claim that a flattened character has automatically become a clean rig: shoulders need overlap and reconstruction, not rectangular crops.
+Create a character from permitted artwork or produce original artwork with the available image tools. Establish the requested appearance and use independently painted layers on one shared transparent canvas. Repair overlaps at shoulders and neck; do not imply that slicing a flat picture produces a production-ready rig. Confirm the composite and movement visually. The runtime performs small rigid rotations, not skeletal animation.
 
-The current Net Pet implementation uses version 2 `skin.json` plus `hair.png`, `body.png`, `left.png`, `right.png`, `head.png`, and `ahoge.png`. Every PNG must have the same dimensions, each side 64–2048 pixels, and each file at most 8 MiB. Hair sits behind the body; body excludes head, arms, and ahoge. Layer rotation is rigid and subtle, not skeletal animation. The manifest is UTF-8, at most 16 KiB; `name` must be nonempty and at most 40 characters. Pivot coordinates are finite numbers in [0,1], normalized from the top-left of the canvas. Adapt pivots to the actual artwork:
+For a new six-layer skin, supply aligned `hair.png`, `body.png`, `left.png`, `right.png`, `head.png`, `ahoge.png` and `skin.json`. Read [the format and workflow](references/format.md) for the schema, layer order, pivots, practical checks, and v1 compatibility. Use `scripts/skin_tool.py` to prepare a new package from independently drawn PNGs, validate it, and generate a static composite. This script needs Python 3 and Pillow; if unavailable, tell the user how to install Pillow or use an equivalent tool. Never represent its static preview as motion validation.
 
-```json
-{"version":2,"name":"My companion","leftPivotX":0.32,"armPivotY":0.68,"rightPivotX":0.68,"rightArmPivotY":0.68,"hairPivotX":0.5,"hairPivotY":0.22,"headPivotX":0.5,"headPivotY":0.56,"ahogePivotX":0.5,"ahogePivotY":0.14}
+```powershell
+python <skill>/scripts/skin_tool.py prepare --layers <layer-directory> --output <new-directory> --name "伙伴"
+python <skill>/scripts/skin_tool.py validate <new-directory> --preview <preview.png>
 ```
 
-Version 1 accepts only hair, body, left and right, with head on the body and a shared armPivotY. Prefer version 2 for new work. Before delivery inspect all layers, canvas dimensions, alignment, transparency and the composite; verify the app's current documentation and implementation if available, since this feature may change. Test motion in the application when possible; report if unavailable.
+Adjust pivots in `skin.json` to the actual artwork, revalidate, inspect the composite, and test movement in Net Pet where available. Preserve source layers. A successful format check does not establish visual quality or rights to the art. Deliver the folder and preview; clearly report any untested motion or import.
 
-For local import, run the installed `tools/ugc/import-skin.ps1` with PowerShell 7 and `-Manifest <absolute path to skin.json>` while Net Pet is running normally. Find the actual installation directory rather than assuming it. The importer writes a local request and awaits a result; on timeout inspect the reported request ID and result before retrying. Import changes the local library, whose ten-item limit retires the oldest entry on a successful import; preserve source artwork. Alternatively deliver the folder for manual import. This is local UGC, not Steam Workshop or online publishing.
+When the user requests import, run the installed application's `tools/ugc/import-skin.ps1` with PowerShell 7 and `-Manifest <absolute path to skin.json>` while Net Pet is running normally. Locate the actual installation folder; do not assume a user-data path. Successful import equips the skin and the local ten-slot library moves the oldest entry into `_retired` if full. On timeout, inspect the printed request ID and result file before retrying. This is local UGC, not online publishing or Steam Workshop.
