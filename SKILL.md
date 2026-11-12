@@ -16,4 +16,6 @@ python <skill>/scripts/skin_tool.py validate <new-directory> --preview <preview.
 
 Adjust pivots in `skin.json` to the actual artwork, revalidate, inspect the composite, and test movement in Net Pet where available. Preserve source layers. A successful format check does not establish visual quality or rights to the art. Deliver the folder and preview; clearly report any untested motion or import.
 
+`assets/example-skin/` is an original six-layer example that can be validated or imported directly. It demonstrates file alignment and pivots; tailor artwork and joints to the user's character rather than presenting the example as their custom design.
+
 When the user requests import, run the installed application's `tools/ugc/import-skin.ps1` with PowerShell 7 and `-Manifest <absolute path to skin.json>` while Net Pet is running normally. Locate the actual installation folder; do not assume a user-data path. Successful import equips the skin and the local ten-slot library moves the oldest entry into `_retired` if full. On timeout, inspect the printed request ID and result file before retrying. This is local UGC, not online publishing or Steam Workshop.
