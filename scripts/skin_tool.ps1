@@ -29,6 +29,11 @@ function Inspect-Skin([string]$Directory, [string]$PreviewPath) {
     $json = [Text.UTF8Encoding]::new($false, $true).GetString($raw) | ConvertFrom-Json -AsHashtable
     if ($null -eq $json -or $json.version -is [bool] -or $json.version -isnot [ValueType] -or $json.version -notin @(1,2,3)) { throw '版本必须为 1、2 或 3。' }
     if ($json.name -isnot [string] -or [string]::IsNullOrWhiteSpace($json.name) -or $json.name.Length -gt 40) { throw '名称不能为空且不得超过 40 个 UTF-16 单元。' }
+    if (($null -ne $json.characterId -and $json.characterId -cne '') -or ($null -ne $json.seriesId -and $json.seriesId -cne '')) {
+        foreach ($value in @($json.characterId, $json.seriesId)) {
+            if ($value -isnot [string] -or [string]::IsNullOrWhiteSpace($value) -or $value.Length -gt 40 -or $value -cne $value.Trim() -or $value -match '[\p{Cc}]') { throw 'characterId 和 seriesId 必须同时为有效标识。' }
+        }
+    }
     foreach ($key in $pivots) {
         if (-not $json.ContainsKey($key)) { continue }
         $value = $json[$key]

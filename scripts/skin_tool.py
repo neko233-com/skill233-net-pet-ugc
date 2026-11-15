@@ -2,6 +2,7 @@
 """Prepare and inspect a Net Pet layered skin; never alter source artwork."""
 import argparse
 import json
+import unicodedata
 import math
 import os
 from pathlib import Path
@@ -35,6 +36,13 @@ def inspect(folder):
     name = data.get("name")
     if not isinstance(name, str) or not name.strip() or len(name.encode("utf-16-le")) // 2 > 40:
         raise ValueError("name must be nonempty and at most 40 UTF-16 units")
+    character, series = data.get("characterId"), data.get("seriesId")
+    if character not in (None, "") or series not in (None, ""):
+        for value in (character, series):
+            if (not isinstance(value, str) or not value.strip() or value != value.strip()
+                    or len(value.encode("utf-16-le")) // 2 > 40
+                    or any(unicodedata.category(c) == "Cc" for c in value)):
+                raise ValueError("characterId and seriesId must both be valid identifiers")
     for key in PIVOTS:
         value = data.get(key, PIVOTS[key])
         if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 1:

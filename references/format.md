@@ -4,6 +4,8 @@ All PNG files use the same 64–2048 pixel canvas, share exactly the same dimens
 
 The UTF-8 `skin.json` is at most 16 KiB. Name is nonblank and at most 40 UTF-16 code units. Pivots are finite normalized coordinates in [0,1], measured from the canvas top-left. These values are starting points only:
 
+Optional `characterId` and `seriesId` identify an OC and its collection. Supply both together, or omit both for an unclassified legacy work. Each is a nonblank, trimmed string of at most 40 UTF-16 units without control characters. Keep these identifiers stable across variants and shared ZIPs. The desktop classification interface is still under development.
+
 ```json
 {"version":2,"name":"我的伙伴","leftPivotX":0.32,"armPivotY":0.68,"rightPivotX":0.68,"rightArmPivotY":0.68,"hairPivotX":0.5,"hairPivotY":0.22,"headPivotX":0.5,"headPivotY":0.56,"ahogePivotX":0.5,"ahogePivotY":0.14}
 ```

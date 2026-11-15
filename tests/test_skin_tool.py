@@ -51,6 +51,20 @@ class SkinToolTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout)["version"], 1)
 
+    def test_classification(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in FILES[:4]:
+                Image.new("RGBA", (64, 64), (30, 40, 50, 128)).save(root / name)
+            path = root / "skin.json"
+            manifest = {"version": 1, "name": "OC", "characterId": "oc-moon", "seriesId": "winter-collection"}
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            self.assertEqual(self.run_tool("validate", root).returncode, 0)
+            for bad in (None, " bad", "bad\nseries", "x" * 41):
+                manifest["seriesId"] = bad
+                path.write_text(json.dumps(manifest), encoding="utf-8")
+                self.assertNotEqual(self.run_tool("validate", root).returncode, 0)
+
     def test_shipped_examples(self):
         assets = TOOL.parents[1] / "assets"
         for name in ("example-skin", "sunny", "starlight"):
