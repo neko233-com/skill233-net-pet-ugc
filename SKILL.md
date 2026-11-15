@@ -1,9 +1,11 @@
 ---
 name: skill233-net-pet-ugc
-description: Create, check, preview, and import local layered Net Pet character skins. Use for Net Pet UGC creation or adaptation, not general image editing.
+description: Create, check, preview, and import local layered dsdoll (formerly Net Pet) character skins. Use for dsdoll UGC creation or adaptation, not general image editing.
 ---
 
 # Net Pet UGC
+
+The product is now named dsdoll. The skill and repository retain their existing Net Pet identifiers for compatibility.
 
 Create a character from permitted artwork or produce original artwork with the available image tools. Establish the requested appearance and use independently painted layers on one shared transparent canvas. Repair overlaps at shoulders and neck; do not imply that slicing a flat picture produces a production-ready rig. Confirm the composite and movement visually. The runtime performs small rigid rotations, not skeletal animation.
 
