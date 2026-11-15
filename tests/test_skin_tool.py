@@ -4,6 +4,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import os
+import shutil
 
 from PIL import Image
 
@@ -88,6 +90,72 @@ class SkinToolTest(unittest.TestCase):
             preview.unlink()
             (root / 'tail.png').unlink()
             self.assertNotEqual(self.run_tool('validate', root).returncode, 0)
+
+    def test_press_poses_match_hand_layer_order_and_fall_back(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'skin'
+            root.mkdir()
+            for name in FILES:
+                Image.new('RGBA', (64, 64), (0, 0, 0, 0)).save(root / name)
+            for name, color, box in (
+                ('left.png', 'green', (0, 0, 31, 63)),
+                ('right.png', 'yellow', (32, 0, 63, 63)),
+                ('left-pressed.png', 'blue', (0, 0, 31, 63)),
+                ('right-pressed.png', 'magenta', (32, 0, 63, 63)),
+                # The head must remain above either hand pose.
+                ('head.png', 'red', (12, 12, 20, 20)),
+            ):
+                image = Image.new('RGBA', (64, 64), (0, 0, 0, 0))
+                from PIL import ImageDraw
+                ImageDraw.Draw(image).rectangle(box, fill=color)
+                image.save(root / name)
+            manifest = {'version': 3, 'name': 'poses', 'leftPressed': True, 'rightPressed': True}
+            (root / 'skin.json').write_text(json.dumps(manifest), encoding='utf-8')
+            expected = {
+                'neutral': ((0,128,0,255), (255,255,0,255)),
+                'left-pressed': ((0,0,255,255), (255,255,0,255)),
+                'right-pressed': ((0,128,0,255), (255,0,255,255)),
+                'both-pressed': ((0,0,255,255), (255,0,255,255)),
+            }
+            ps_names = {'neutral':'Neutral','left-pressed':'LeftPressed','right-pressed':'RightPressed','both-pressed':'BothPressed'}
+            pwsh = shutil.which('pwsh') or (str(Path.home() / '.dotnet/tools/pwsh.exe') if os.name == 'nt' else None)
+            for pose, colors in expected.items():
+                preview = Path(tmp) / (pose + '-python.png')
+                result = self.run_tool('validate', root, '--preview', preview, '--pose', pose)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                with Image.open(preview) as image:
+                    self.assertEqual((image.getpixel((8, 32)), image.getpixel((48, 32))), colors)
+                    self.assertEqual(image.getpixel((16, 16)), (255,0,0,255))
+                if pwsh and os.name == 'nt':
+                    ps_preview = Path(tmp) / (pose + '-powershell.png')
+                    result = subprocess.run([pwsh, '-NoProfile', '-File', str(TOOL.with_suffix('.ps1')), '-Action', 'Validate', '-Folder', str(root), '-Preview', str(ps_preview), '-Pose', ps_names[pose]], capture_output=True, text=True, encoding='utf-8')
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    with Image.open(ps_preview) as image:
+                        self.assertEqual((image.getpixel((8, 32)), image.getpixel((48, 32))), colors)
+                        self.assertEqual(image.getpixel((16, 16)), (255,0,0,255))
+            manifest['leftPressed'] = False
+            (root / 'skin.json').write_text(json.dumps(manifest), encoding='utf-8')
+            preview = Path(tmp) / 'fallback.png'
+            self.assertEqual(self.run_tool('validate', root, '--preview', preview, '--pose', 'both-pressed').returncode, 0)
+            with Image.open(preview) as image: self.assertEqual(image.getpixel((8,32)), (0,128,0,255))
+            if pwsh and os.name == 'nt':
+                ps_preview = Path(tmp) / 'fallback-powershell.png'
+                result = subprocess.run([pwsh, '-NoProfile', '-File', str(TOOL.with_suffix('.ps1')), '-Action', 'Validate', '-Folder', str(root), '-Preview', str(ps_preview), '-Pose', 'BothPressed'], capture_output=True, text=True, encoding='utf-8')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                with Image.open(ps_preview) as image: self.assertEqual(image.getpixel((8,32)), (0,128,0,255))
+
+    def test_extra_pivots_are_checked_for_every_manifest_version(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in FILES:
+                Image.new('RGBA', (64, 64)).save(root / name)
+            pwsh = shutil.which('pwsh') or (str(Path.home() / '.dotnet/tools/pwsh.exe') if os.name == 'nt' else None)
+            for version in (1, 2, 3):
+                (root / 'skin.json').write_text(json.dumps({'version':version,'name':'OC','tailPivotX':2}), encoding='utf-8')
+                self.assertNotEqual(self.run_tool('validate', root).returncode, 0)
+                if pwsh and os.name == 'nt':
+                    result = subprocess.run([pwsh, '-NoProfile', '-File', str(TOOL.with_suffix('.ps1')), '-Action', 'Validate', '-Folder', str(root)], capture_output=True, text=True, encoding='utf-8')
+                    self.assertNotEqual(result.returncode, 0)
 
 
 if __name__ == "__main__":

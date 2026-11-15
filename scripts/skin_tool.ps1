@@ -8,7 +8,8 @@ param(
     [string]$Output,
     [string]$Name,
     [string]$Folder,
-    [string]$Preview
+    [string]$Preview,
+    [ValidateSet('Neutral','LeftPressed','RightPressed','BothPressed')][string]$Pose = 'Neutral'
 )
 $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) { throw 'This offline alternative requires Windows and PowerShell 7.' }
@@ -84,7 +85,13 @@ function Inspect-Skin([string]$Directory, [string]$PreviewPath) {
                     } finally { $bitmap.Dispose() }
                     if ($PreviewPath -and $name -notin @('left-pressed.png','right-pressed.png')) {
                         if ($null -eq $composite) { $composite = [Drawing.Bitmap]::new($width, $height, [Drawing.Imaging.PixelFormat]::Format32bppArgb); $graphics = [Drawing.Graphics]::FromImage($composite) }
-                        $graphics.DrawImage($image, 0, 0, $width, $height)
+                        $pressed = if ($json.version -eq 3 -and $name -eq 'left.png' -and $json.leftPressed -and $Pose -in @('LeftPressed','BothPressed')) { 'left-pressed.png' }
+                            elseif ($json.version -eq 3 -and $name -eq 'right.png' -and $json.rightPressed -and $Pose -in @('RightPressed','BothPressed')) { 'right-pressed.png' } else { $null }
+                        if ($pressed) {
+                            $pressedStream = [IO.MemoryStream]::new((Read-Limited (Join-Path $dir $pressed) (8 * 1024 * 1024)), $false)
+                            try { $pressedImage = [Drawing.Image]::FromStream($pressedStream, $true, $true); try { $graphics.DrawImage($pressedImage, 0, 0, $width, $height) } finally { $pressedImage.Dispose() } }
+                            finally { $pressedStream.Dispose() }
+                        } else { $graphics.DrawImage($image, 0, 0, $width, $height) }
                     }
                 } finally { $image.Dispose() }
             } finally { $stream.Dispose() }

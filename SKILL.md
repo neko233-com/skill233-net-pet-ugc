@@ -14,6 +14,7 @@ For a new six-layer skin, supply aligned `hair.png`, `body.png`, `left.png`, `ri
 ```powershell
 pwsh -NoProfile -File <skill>/scripts/skin_tool.ps1 -Action Prepare -Layers <layer-directory> -Output <new-directory> -Name "伙伴"
 pwsh -NoProfile -File <skill>/scripts/skin_tool.ps1 -Action Validate -Folder <new-directory> -Preview <new-preview.png>
+pwsh -NoProfile -File <skill>/scripts/skin_tool.ps1 -Action Validate -Folder <new-directory> -Preview <new-pressed-preview.png> -Pose BothPressed
 ```
 
 Alternatively, `scripts/skin_tool.py` supports Python 3 with Pillow where those are already installed:
@@ -21,11 +22,12 @@ Alternatively, `scripts/skin_tool.py` supports Python 3 with Pillow where those 
 ```powershell
 python <skill>/scripts/skin_tool.py prepare --layers <layer-directory> --output <new-directory> --name "伙伴"
 python <skill>/scripts/skin_tool.py validate <new-directory> --preview <preview.png>
+python <skill>/scripts/skin_tool.py validate <new-directory> --preview <pressed-preview.png> --pose both-pressed
 ```
 
 Review the Windows tool's warnings for sampled transparency and possible empty layers; sparse samples can miss small details, and intentionally transparent layers are valid. The Python validator inspects the full alpha channel. Adjust pivots in `skin.json` to the actual artwork, revalidate, inspect the composite, and test movement in Net Pet where available. Preserve source layers. A successful format check does not establish visual quality or rights to the art. Deliver the folder and preview; clearly report any untested motion or import.
 
-Version 3 retains the six base layers and supports optional `tail.png`, `wings.png`, `accessory.png`, `left-pressed.png`, and `right-pressed.png`, enabled by boolean manifest fields `tail`, `wings`, `accessory`, `leftPressed`, and `rightPressed`. The first two render behind the body and gently sway; the accessory renders in front. Pressed-hand art replaces the corresponding hand during a typing pulse. Each layer still shares the full transparent canvas; this is a layered rig, not arbitrary bones or a timeline. The editor's “扩展图层” page can add these files. Check both neutral and pressed art for seamless shoulder overlap.
+Version 3 retains the six base layers and supports optional `tail.png`, `wings.png`, `accessory.png`, `left-pressed.png`, and `right-pressed.png`, enabled by boolean manifest fields `tail`, `wings`, `accessory`, `leftPressed`, and `rightPressed`. The first two render behind the body and gently sway; the accessory renders in front. Pressed-hand art replaces the corresponding hand during a typing pulse. Each layer still shares the full transparent canvas; this is a layered rig, not arbitrary bones or a timeline. The editor's “扩展图层” page can add or remove these files, and its pivot selector adjusts tail, wings and accessory pivots. The PowerShell preview accepts `Neutral`, `LeftPressed`, `RightPressed` and `BothPressed`; the Python equivalents are `neutral`, `left-pressed`, `right-pressed` and `both-pressed`. Missing pressed art falls back to the normal hand. These are static composites without the runtime's rotation; inspect real animation separately. Check both neutral and pressed art for seamless shoulder overlap.
 
 `assets/example-skin/`, `assets/sunny/`, and `assets/starlight/` are original six-layer examples that can be validated or imported directly. The desktop editor also contains these examples; open “示例作品”, choose one, adjust it, and save a new work. They demonstrate alignment and pivots; tailor artwork and joints to the user's character rather than presenting an example as their custom design.
 

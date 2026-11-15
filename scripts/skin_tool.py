@@ -21,6 +21,8 @@ EXTRAS = {"tail": "tail.png", "wings": "wings.png", "accessory": "accessory.png"
 PIVOTS = {"leftPivotX": .32, "rightPivotX": .68, "armPivotY": .68,
           "rightArmPivotY": .68, "hairPivotX": .5, "hairPivotY": .22,
           "headPivotX": .5, "headPivotY": .56, "ahogePivotX": .5, "ahogePivotY": .14}
+EXTRA_PIVOTS = {"tailPivotX": .5, "tailPivotY": .75, "wingsPivotX": .5,
+                "wingsPivotY": .55, "accessoryPivotX": .5, "accessoryPivotY": .5}
 
 
 def inspect(folder):
@@ -43,8 +45,8 @@ def inspect(folder):
                     or len(value.encode("utf-16-le")) // 2 > 40
                     or any(unicodedata.category(c) == "Cc" for c in value)):
                 raise ValueError("characterId and seriesId must both be valid identifiers")
-    for key in PIVOTS:
-        value = data.get(key, PIVOTS[key])
+    for key, default in {**PIVOTS, **EXTRA_PIVOTS}.items():
+        value = data.get(key, default)
         if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 1:
             raise ValueError(f"invalid pivot {key}")
     size = None
@@ -56,9 +58,6 @@ def inspect(folder):
             if flag in data and type(data[flag]) is not bool:
                 raise ValueError(f"{flag} must be a boolean")
             if data.get(flag, False): names += (file,)
-        for key in ('tailPivotX','tailPivotY','wingsPivotX','wingsPivotY','accessoryPivotX','accessoryPivotY'):
-            value = data.get(key, .5)
-            if type(value) not in (int,float) or not math.isfinite(value) or not 0 <= value <= 1: raise ValueError(f"invalid pivot {key}")
     for name in names:
         file = folder / name
         if file.is_symlink() or not file.is_file() or not 0 < file.stat().st_size <= 8 * 1024 * 1024:
@@ -87,6 +86,7 @@ def main():
     validate = sub.add_parser("validate")
     validate.add_argument("folder", type=Path)
     validate.add_argument("--preview", type=Path, help="new static composite PNG outside the skin directory")
+    validate.add_argument("--pose", choices=("neutral", "left-pressed", "right-pressed", "both-pressed"), default="neutral", help="static hand pose for the preview")
     prepare = sub.add_parser("prepare")
     prepare.add_argument("--layers", type=Path, required=True)
     prepare.add_argument("--output", type=Path, required=True)
@@ -121,6 +121,10 @@ def main():
             if data['version'] == 3: names += [file for flag, file in EXTRAS.items() if data.get(flag, False)]
             indexed = dict(zip(names, layers))
             for name in ('tail.png','wings.png',*V1,'head.png','ahoge.png','accessory.png'):
+                if name == 'left.png' and args.pose in ('left-pressed', 'both-pressed') and 'left-pressed.png' in indexed:
+                    name = 'left-pressed.png'
+                elif name == 'right.png' and args.pose in ('right-pressed', 'both-pressed') and 'right-pressed.png' in indexed:
+                    name = 'right-pressed.png'
                 if name in indexed: composite.alpha_composite(indexed[name])
             with open(preview, "xb") as output:
                 composite.save(output, format="PNG")
