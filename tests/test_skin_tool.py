@@ -53,6 +53,42 @@ class SkinToolTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout)["version"], 1)
 
+    def test_prepare_preserves_optional_layers_without_touching_sources(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            layers = root / 'layers'
+            layers.mkdir()
+            for name in (*FILES, 'tail.png', 'right-pressed.png'):
+                Image.new('RGBA', (64, 64), (50, 80, 120, 128)).save(layers / name)
+            source_files = {p.name: p.read_bytes() for p in layers.iterdir()}
+            commands = [('python', None)]
+            pwsh = shutil.which('pwsh') or (str(Path.home() / '.dotnet/tools/pwsh.exe') if os.name == 'nt' else None)
+            if pwsh and os.name == 'nt': commands.append(('powershell', pwsh))
+            for label, executable in commands:
+                target = root / label
+                if executable:
+                    result = subprocess.run([executable, '-NoProfile', '-File', str(TOOL.with_suffix('.ps1')), '-Action', 'Prepare', '-Layers', str(layers), '-Output', str(target), '-Name', 'OC'], capture_output=True, text=True, encoding='utf-8')
+                else:
+                    result = self.run_tool('prepare', '--layers', layers, '--output', target, '--name', 'OC')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                manifest = json.loads((target / 'skin.json').read_text(encoding='utf-8-sig'))
+                self.assertEqual(manifest['version'], 3)
+                self.assertTrue(manifest['tail'])
+                self.assertTrue(manifest['rightPressed'])
+                self.assertNotIn('wings', manifest)
+                for name, contents in source_files.items(): self.assertEqual((target / name).read_bytes(), contents)
+                self.assertEqual(self.run_tool('validate', target).returncode, 0)
+            self.assertEqual({p.name: p.read_bytes() for p in layers.iterdir()}, source_files)
+            (layers / 'wings.png').write_bytes(b'invalid')
+            for label, executable in commands:
+                target = root / ('invalid-' + label)
+                if executable:
+                    result = subprocess.run([executable, '-NoProfile', '-File', str(TOOL.with_suffix('.ps1')), '-Action', 'Prepare', '-Layers', str(layers), '-Output', str(target), '-Name', 'OC'], capture_output=True, text=True, encoding='utf-8')
+                else:
+                    result = self.run_tool('prepare', '--layers', layers, '--output', target, '--name', 'OC')
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(target.exists())
+
     def test_classification(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

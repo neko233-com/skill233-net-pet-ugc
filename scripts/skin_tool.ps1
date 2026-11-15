@@ -16,6 +16,7 @@ if (-not $IsWindows) { throw 'This offline alternative requires Windows and Powe
 Add-Type -AssemblyName System.Drawing
 $partsV1 = @('hair.png','body.png','left.png','right.png')
 $partsV2 = @($partsV1) + @('head.png','ahoge.png')
+$extraParts = [ordered]@{ tail='tail.png'; wings='wings.png'; accessory='accessory.png'; leftPressed='left-pressed.png'; rightPressed='right-pressed.png' }
 $pivots = @('leftPivotX','rightPivotX','armPivotY','rightArmPivotY','hairPivotX','hairPivotY','headPivotX','headPivotY','ahogePivotX','ahogePivotY','tailPivotX','tailPivotY','wingsPivotX','wingsPivotY','accessoryPivotX','accessoryPivotY')
 function Read-Limited([string]$Path, [int]$Limit) {
     $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
@@ -44,7 +45,7 @@ function Inspect-Skin([string]$Directory, [string]$PreviewPath) {
     }
     $names = if ($json.version -eq 1) { @($partsV1) } else { @($partsV2) }
     if ($json.version -eq 3) {
-        $extra = [ordered]@{ tail='tail.png'; wings='wings.png'; accessory='accessory.png'; leftPressed='left-pressed.png'; rightPressed='right-pressed.png' }
+        $extra = $extraParts
         foreach ($key in $extra.Keys) { if ($json.ContainsKey($key) -and $json[$key] -isnot [bool]) { throw "图层标志无效：$key" } }
         $back = @(); foreach ($key in @('tail','wings')) { if ($json[$key]) { $back += $extra[$key] } }
         $front = @(); foreach ($key in @('accessory','leftPressed','rightPressed')) { if ($json[$key]) { $front += $extra[$key] } }
@@ -116,7 +117,15 @@ if ($Action -eq 'Prepare') {
     New-Item -ItemType Directory -Path $staging | Out-Null
     try {
         foreach ($part in $partsV2) { [IO.File]::WriteAllBytes((Join-Path $staging $part), (Read-Limited (Join-Path $source $part) (8 * 1024 * 1024))) }
-        [ordered]@{version=2;name=$Name;leftPivotX=.32;armPivotY=.68;rightPivotX=.68;rightArmPivotY=.68;hairPivotX=.5;hairPivotY=.22;headPivotX=.5;headPivotY=.56;ahogePivotX=.5;ahogePivotY=.14} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $staging 'skin.json') -Encoding utf8NoBOM
+        $manifest = [ordered]@{version=2;name=$Name;leftPivotX=.32;armPivotY=.68;rightPivotX=.68;rightArmPivotY=.68;hairPivotX=.5;hairPivotY=.22;headPivotX=.5;headPivotY=.56;ahogePivotX=.5;ahogePivotY=.14}
+        foreach ($flag in $extraParts.Keys) {
+            $part = $extraParts[$flag]
+            if ($null -ne (Get-Item -LiteralPath (Join-Path $source $part) -Force -ErrorAction SilentlyContinue)) {
+                [IO.File]::WriteAllBytes((Join-Path $staging $part), (Read-Limited (Join-Path $source $part) (8 * 1024 * 1024)))
+                $manifest.version = 3; $manifest[$flag] = $true
+            }
+        }
+        $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $staging 'skin.json') -Encoding utf8NoBOM
         Inspect-Skin $staging $null | Out-Null
         [IO.Directory]::Move($staging, $target)
     } finally {

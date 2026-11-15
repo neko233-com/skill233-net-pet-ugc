@@ -102,10 +102,21 @@ def main():
                 draft.mkdir()
                 for name in V2:
                     source = args.layers / name
-                    if source.is_symlink() or not source.is_file():
-                        raise ValueError(f"{name}: missing or linked source")
+                    if source.is_symlink() or not source.is_file() or not 0 < source.stat().st_size <= 8 * 1024 * 1024:
+                        raise ValueError(f"{name}: missing, linked, empty, or over 8 MiB")
                     shutil.copyfile(source, draft / name)
-                (draft / "skin.json").write_text(json.dumps({"version": 2, "name": args.name, **PIVOTS}, ensure_ascii=False, indent=2), encoding="utf-8")
+                enabled = {}
+                for flag, name in EXTRAS.items():
+                    source = args.layers / name
+                    if source.is_symlink():
+                        raise ValueError(f"{name}: linked source")
+                    if source.exists():
+                        if not source.is_file() or not 0 < source.stat().st_size <= 8 * 1024 * 1024:
+                            raise ValueError(f"{name}: expected a nonempty file up to 8 MiB")
+                        shutil.copyfile(source, draft / name)
+                        enabled[flag] = True
+                manifest = {"version": 3 if enabled else 2, "name": args.name, **PIVOTS, **enabled}
+                (draft / "skin.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
                 inspect(draft)
                 os.rename(draft, args.output)
             folder = args.output
