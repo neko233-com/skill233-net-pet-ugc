@@ -47,6 +47,6 @@ if ($manifest.version -eq 3) {
 Compress-Archive -LiteralPath @($names | ForEach-Object { Join-Path $folder $_ }) -DestinationPath $zip
 ```
 
-When the user requests import, run the installed application's `tools/ugc/import-skin.ps1` with PowerShell 7 and `-Manifest <absolute path to skin.json or ZIP>` while Net Pet is running normally. Locate the actual installation folder; do not assume a user-data path. Successful import equips the skin and the local ten-slot library moves the oldest entry into `_retired` if full. On timeout, inspect the printed request ID and result file before retrying. This is local UGC, not online publishing or Steam Workshop.
+When the user requests import, run the installed application's `tools/ugc/import-skin.ps1` with PowerShell 7 and `-Manifest <absolute path to skin.json or ZIP>` while Net Pet is running normally. Locate the actual installation folder; do not assume a user-data path. Successful import equips the skin and the local twenty-slot library moves the oldest entry into `_retired` if full. On timeout, inspect the printed request ID and result file before retrying. This is local UGC, not online publishing or Steam Workshop.
 
 When explicitly asked to animate the running local pet, the installed client also accepts `-Action Typing -Count 4` (1–8). This sends no OS keystrokes and gives no currency; it respects the user's animation setting. Preview mode does not process requests. An acknowledgement means accepted, not that the animation has finished.
