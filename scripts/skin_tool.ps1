@@ -15,7 +15,7 @@ if (-not $IsWindows) { throw 'This offline alternative requires Windows and Powe
 Add-Type -AssemblyName System.Drawing
 $partsV1 = @('hair.png','body.png','left.png','right.png')
 $partsV2 = @($partsV1) + @('head.png','ahoge.png')
-$pivots = @('leftPivotX','rightPivotX','armPivotY','rightArmPivotY','hairPivotX','hairPivotY','headPivotX','headPivotY','ahogePivotX','ahogePivotY')
+$pivots = @('leftPivotX','rightPivotX','armPivotY','rightArmPivotY','hairPivotX','hairPivotY','headPivotX','headPivotY','ahogePivotX','ahogePivotY','tailPivotX','tailPivotY','wingsPivotX','wingsPivotY','accessoryPivotX','accessoryPivotY')
 function Read-Limited([string]$Path, [int]$Limit) {
     $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
     if ($item.PSIsContainer -or $item.Length -le 0 -or $item.Length -gt $Limit -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw "文件不存在、为空、过大或为链接：$Path" }
@@ -27,7 +27,7 @@ function Inspect-Skin([string]$Directory, [string]$PreviewPath) {
     if (-not $dirItem.PSIsContainer -or ($dirItem.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw '皮肤目录无效或为链接。' }
     $raw = Read-Limited (Join-Path $dir 'skin.json') 16384
     $json = [Text.UTF8Encoding]::new($false, $true).GetString($raw) | ConvertFrom-Json -AsHashtable
-    if ($null -eq $json -or $json.version -is [bool] -or $json.version -isnot [ValueType] -or $json.version -notin @(1,2)) { throw '版本必须为 1 或 2。' }
+    if ($null -eq $json -or $json.version -is [bool] -or $json.version -isnot [ValueType] -or $json.version -notin @(1,2,3)) { throw '版本必须为 1、2 或 3。' }
     if ($json.name -isnot [string] -or [string]::IsNullOrWhiteSpace($json.name) -or $json.name.Length -gt 40) { throw '名称不能为空且不得超过 40 个 UTF-16 单元。' }
     foreach ($key in $pivots) {
         if (-not $json.ContainsKey($key)) { continue }
@@ -36,7 +36,14 @@ function Inspect-Skin([string]$Directory, [string]$PreviewPath) {
         try { $number = [double]$value } catch { throw "关节坐标无效：$key" }
         if ([double]::IsNaN($number) -or [double]::IsInfinity($number) -or $number -lt 0 -or $number -gt 1) { throw "关节坐标超出 0–1：$key" }
     }
-    $names = if ($json.version -eq 1) { $partsV1 } else { $partsV2 }
+    $names = if ($json.version -eq 1) { @($partsV1) } else { @($partsV2) }
+    if ($json.version -eq 3) {
+        $extra = [ordered]@{ tail='tail.png'; wings='wings.png'; accessory='accessory.png'; leftPressed='left-pressed.png'; rightPressed='right-pressed.png' }
+        foreach ($key in $extra.Keys) { if ($json.ContainsKey($key) -and $json[$key] -isnot [bool]) { throw "图层标志无效：$key" } }
+        $back = @(); foreach ($key in @('tail','wings')) { if ($json[$key]) { $back += $extra[$key] } }
+        $front = @(); foreach ($key in @('accessory','leftPressed','rightPressed')) { if ($json[$key]) { $front += $extra[$key] } }
+        $names = $back + @($partsV2) + $front
+    }
     $width = 0; $height = 0; $composite = $null; $graphics = $null
     $warnings = [Collections.Generic.List[string]]::new()
     try {
@@ -70,7 +77,7 @@ function Inspect-Skin([string]$Directory, [string]$PreviewPath) {
                         if (-not $hasAlpha) { $warnings.Add("${name}: 采样未发现可见像素，可能为空或细节很小") }
                         elseif (-not $hasOpaque) { $warnings.Add("${name}: 采样未发现透明区域，请检查画布背景") }
                     } finally { $bitmap.Dispose() }
-                    if ($PreviewPath) {
+                    if ($PreviewPath -and $name -notin @('left-pressed.png','right-pressed.png')) {
                         if ($null -eq $composite) { $composite = [Drawing.Bitmap]::new($width, $height, [Drawing.Imaging.PixelFormat]::Format32bppArgb); $graphics = [Drawing.Graphics]::FromImage($composite) }
                         $graphics.DrawImage($image, 0, 0, $width, $height)
                     }

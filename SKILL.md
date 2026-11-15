@@ -23,6 +23,8 @@ python <skill>/scripts/skin_tool.py validate <new-directory> --preview <preview.
 
 Review the Windows tool's warnings for sampled transparency and possible empty layers; sparse samples can miss small details, and intentionally transparent layers are valid. The Python validator inspects the full alpha channel. Adjust pivots in `skin.json` to the actual artwork, revalidate, inspect the composite, and test movement in Net Pet where available. Preserve source layers. A successful format check does not establish visual quality or rights to the art. Deliver the folder and preview; clearly report any untested motion or import.
 
+Version 3 retains the six base layers and supports optional `tail.png`, `wings.png`, `accessory.png`, `left-pressed.png`, and `right-pressed.png`, enabled by boolean manifest fields `tail`, `wings`, `accessory`, `leftPressed`, and `rightPressed`. The first two render behind the body and gently sway; the accessory renders in front. Pressed-hand art replaces the corresponding hand during a typing pulse. Each layer still shares the full transparent canvas; this is a layered rig, not arbitrary bones or a timeline. The editor's “扩展图层” page can add these files. Check both neutral and pressed art for seamless shoulder overlap.
+
 `assets/example-skin/`, `assets/sunny/`, and `assets/starlight/` are original six-layer examples that can be validated or imported directly. The desktop editor also contains these examples; open “示例作品”, choose one, adjust it, and save a new work. They demonstrate alignment and pivots; tailor artwork and joints to the user's character rather than presenting an example as their custom design.
 
 In the desktop library, select a work and open “管理作品” to edit it, export it to a new directory, or move it to the recoverable archive. Saving an edit preserves the active entry and archives its previous revision. The archive can restore or export works; restoring to a full library may retire its oldest active work. Existing v1 four-layer works remain v1 when edited because their face is painted into the body. Exported folders contain `skin.json` and all required PNGs and can be imported again.
@@ -35,8 +37,14 @@ $folder = 'D:\作品\皮肤'; $zip = 'D:\作品\分享.zip'
 if (Test-Path -LiteralPath $zip) { throw 'Destination already exists' }
 $manifest = Get-Content -LiteralPath (Join-Path $folder 'skin.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 $names = @('skin.json','hair.png','body.png','left.png','right.png')
-if ($manifest.version -eq 2) { $names += @('head.png','ahoge.png') }
+if ($manifest.version -ge 2) { $names += @('head.png','ahoge.png') }
+if ($manifest.version -eq 3) {
+    if ($manifest.tail) { $names += 'tail.png' }; if ($manifest.wings) { $names += 'wings.png' }; if ($manifest.accessory) { $names += 'accessory.png' }
+    if ($manifest.leftPressed) { $names += 'left-pressed.png' }; if ($manifest.rightPressed) { $names += 'right-pressed.png' }
+}
 Compress-Archive -LiteralPath @($names | ForEach-Object { Join-Path $folder $_ }) -DestinationPath $zip
 ```
 
 When the user requests import, run the installed application's `tools/ugc/import-skin.ps1` with PowerShell 7 and `-Manifest <absolute path to skin.json or ZIP>` while Net Pet is running normally. Locate the actual installation folder; do not assume a user-data path. Successful import equips the skin and the local ten-slot library moves the oldest entry into `_retired` if full. On timeout, inspect the printed request ID and result file before retrying. This is local UGC, not online publishing or Steam Workshop.
+
+When explicitly asked to animate the running local pet, the installed client also accepts `-Action Typing -Count 4` (1–8). This sends no OS keystrokes and gives no currency; it respects the user's animation setting. Preview mode does not process requests. An acknowledgement means accepted, not that the animation has finished.

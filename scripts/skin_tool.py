@@ -16,6 +16,7 @@ except ImportError:
 
 V1 = ("hair.png", "body.png", "left.png", "right.png")
 V2 = V1 + ("head.png", "ahoge.png")
+EXTRAS = {"tail": "tail.png", "wings": "wings.png", "accessory": "accessory.png", "leftPressed": "left-pressed.png", "rightPressed": "right-pressed.png"}
 PIVOTS = {"leftPivotX": .32, "rightPivotX": .68, "armPivotY": .68,
           "rightArmPivotY": .68, "hairPivotX": .5, "hairPivotY": .22,
           "headPivotX": .5, "headPivotY": .56, "ahogePivotX": .5, "ahogePivotY": .14}
@@ -29,8 +30,8 @@ def inspect(folder):
     if manifest.is_symlink() or not manifest.is_file() or not 0 < manifest.stat().st_size <= 16384:
         raise ValueError("skin.json missing, linked, empty, or over 16 KiB")
     data = json.loads(manifest.read_text(encoding="utf-8-sig"))
-    if not isinstance(data, dict) or type(data.get("version")) is not int or data["version"] not in (1, 2):
-        raise ValueError("version must be 1 or 2")
+    if not isinstance(data, dict) or type(data.get("version")) is not int or data["version"] not in (1, 2, 3):
+        raise ValueError("version must be 1, 2 or 3")
     name = data.get("name")
     if not isinstance(name, str) or not name.strip() or len(name.encode("utf-16-le")) // 2 > 40:
         raise ValueError("name must be nonempty and at most 40 UTF-16 units")
@@ -41,7 +42,16 @@ def inspect(folder):
     size = None
     images = []
     warnings = []
-    for name in V2 if data["version"] == 2 else V1:
+    names = V1 if data["version"] == 1 else V2
+    if data["version"] == 3:
+        for flag, file in EXTRAS.items():
+            if flag in data and type(data[flag]) is not bool:
+                raise ValueError(f"{flag} must be a boolean")
+            if data.get(flag, False): names += (file,)
+        for key in ('tailPivotX','tailPivotY','wingsPivotX','wingsPivotY','accessoryPivotX','accessoryPivotY'):
+            value = data.get(key, .5)
+            if type(value) not in (int,float) or not math.isfinite(value) or not 0 <= value <= 1: raise ValueError(f"invalid pivot {key}")
+    for name in names:
         file = folder / name
         if file.is_symlink() or not file.is_file() or not 0 < file.stat().st_size <= 8 * 1024 * 1024:
             raise ValueError(f"{name}: missing, linked, empty, or over 8 MiB")
@@ -99,8 +109,11 @@ def main():
             if preview == folder.resolve() or folder.resolve() in preview.parents:
                 raise ValueError("preview must be outside the skin directory")
             composite = Image.new("RGBA", size)
-            for layer in layers:
-                composite.alpha_composite(layer)
+            names = list(V1 if data['version'] == 1 else V2)
+            if data['version'] == 3: names += [file for flag, file in EXTRAS.items() if data.get(flag, False)]
+            indexed = dict(zip(names, layers))
+            for name in ('tail.png','wings.png',*V1,'head.png','ahoge.png','accessory.png'):
+                if name in indexed: composite.alpha_composite(indexed[name])
             with open(preview, "xb") as output:
                 composite.save(output, format="PNG")
         print(json.dumps({"ok": True, "name": data["name"], "version": data["version"], "size": size, "warnings": warnings}, ensure_ascii=False))

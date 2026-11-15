@@ -58,6 +58,23 @@ class SkinToolTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout)["version"], 2)
 
+    def test_extended_layers_and_pressed_preview(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in FILES:
+                Image.new('RGBA', (64, 64), (0, 0, 0, 0)).save(root / name)
+            Image.new('RGBA', (64, 64), (255, 0, 0, 255)).save(root / 'body.png')
+            Image.new('RGBA', (64, 64), (0, 255, 0, 255)).save(root / 'tail.png')
+            Image.new('RGBA', (64, 64), (0, 0, 255, 255)).save(root / 'left-pressed.png')
+            (root / 'skin.json').write_text(json.dumps({'version':3,'name':'extended','tail':True,'leftPressed':True}), encoding='utf-8')
+            preview = root.parent / (root.name + '-preview.png')
+            result = self.run_tool('validate', root, '--preview', preview)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            with Image.open(preview) as image: self.assertEqual(image.getpixel((32,32)), (255,0,0,255))
+            preview.unlink()
+            (root / 'tail.png').unlink()
+            self.assertNotEqual(self.run_tool('validate', root).returncode, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
