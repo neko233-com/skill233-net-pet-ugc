@@ -38,6 +38,7 @@ function Inspect-Skin([string]$Directory, [string]$PreviewPath) {
     }
     $names = if ($json.version -eq 1) { $partsV1 } else { $partsV2 }
     $width = 0; $height = 0; $composite = $null; $graphics = $null
+    $warnings = [Collections.Generic.List[string]]::new()
     try {
         if ($PreviewPath) {
             $previewFull = [IO.Path]::GetFullPath($PreviewPath)
@@ -57,6 +58,18 @@ function Inspect-Skin([string]$Directory, [string]$PreviewPath) {
                 $image = [Drawing.Image]::FromStream($stream, $true, $true)
                 try {
                     if ($image.RawFormat.Guid -ne [Drawing.Imaging.ImageFormat]::Png.Guid -or $image.Width -ne $width -or $image.Height -ne $height) { throw "$name 解码失败。" }
+                    # Sparse sampling is a useful diagnostic, not proof that a
+                    # large image is empty; small opaque details can be missed.
+                    $bitmap = [Drawing.Bitmap]::new($image)
+                    try {
+                        $hasAlpha = $false; $hasOpaque = $false
+                        for ($sy = 0; $sy -lt 32; $sy++) { for ($sx = 0; $sx -lt 32; $sx++) {
+                            $a = $bitmap.GetPixel([int](($width - 1) * $sx / 31), [int](($height - 1) * $sy / 31)).A
+                            if ($a -gt 0) { $hasAlpha = $true }; if ($a -lt 255) { $hasOpaque = $true }
+                        } }
+                        if (-not $hasAlpha) { $warnings.Add("${name}: 采样未发现可见像素，可能为空或细节很小") }
+                        elseif (-not $hasOpaque) { $warnings.Add("${name}: 采样未发现透明区域，请检查画布背景") }
+                    } finally { $bitmap.Dispose() }
                     if ($PreviewPath) {
                         if ($null -eq $composite) { $composite = [Drawing.Bitmap]::new($width, $height, [Drawing.Imaging.PixelFormat]::Format32bppArgb); $graphics = [Drawing.Graphics]::FromImage($composite) }
                         $graphics.DrawImage($image, 0, 0, $width, $height)
@@ -68,7 +81,7 @@ function Inspect-Skin([string]$Directory, [string]$PreviewPath) {
             $fileStream = [IO.File]::Open($previewFull, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
             try { $composite.Save($fileStream, [Drawing.Imaging.ImageFormat]::Png) } finally { $fileStream.Dispose() }
         }
-        [pscustomobject]@{ ok=$true; name=$json.name; version=[int]$json.version; width=$width; height=$height; preview=$PreviewPath; note='透明度和动作质量需人工检查。' }
+        [pscustomobject]@{ ok=$true; name=$json.name; version=[int]$json.version; width=$width; height=$height; preview=$PreviewPath; warnings=@($warnings); note='透明度为稀疏采样；遮挡、授权和动作质量需人工检查。' }
     } finally { if ($graphics) { $graphics.Dispose() }; if ($composite) { $composite.Dispose() } }
 }
 if ($Action -eq 'Prepare') {

@@ -21,7 +21,7 @@ python <skill>/scripts/skin_tool.py prepare --layers <layer-directory> --output 
 python <skill>/scripts/skin_tool.py validate <new-directory> --preview <preview.png>
 ```
 
-Adjust pivots in `skin.json` to the actual artwork, revalidate, inspect the composite, and test movement in Net Pet where available. Preserve source layers. A successful format check does not establish visual quality or rights to the art. Deliver the folder and preview; clearly report any untested motion or import.
+Review the Windows tool's warnings for sampled transparency and possible empty layers; sparse samples can miss small details, and intentionally transparent layers are valid. The Python validator inspects the full alpha channel. Adjust pivots in `skin.json` to the actual artwork, revalidate, inspect the composite, and test movement in Net Pet where available. Preserve source layers. A successful format check does not establish visual quality or rights to the art. Deliver the folder and preview; clearly report any untested motion or import.
 
 `assets/example-skin/`, `assets/sunny/`, and `assets/starlight/` are original six-layer examples that can be validated or imported directly. The desktop editor also contains these examples; open “示例作品”, choose one, adjust it, and save a new work. They demonstrate alignment and pivots; tailor artwork and joints to the user's character rather than presenting an example as their custom design.
 
