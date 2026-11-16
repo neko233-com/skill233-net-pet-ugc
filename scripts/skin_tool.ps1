@@ -3,7 +3,7 @@
    decoder; it does not download Python packages or modify source artwork. #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('Prepare','Validate')][string]$Action,
+    [Parameter(Mandatory)][ValidateSet('Prepare','Validate','Share')][string]$Action,
     [string]$Layers,
     [string]$Output,
     [string]$Name,
@@ -136,6 +136,48 @@ if ($Action -eq 'Prepare') {
         }
     }
     Inspect-Skin $target $Preview
+} elseif ($Action -eq 'Share') {
+    if (-not $Folder -or -not $Output) { throw 'Share 需要 -Folder 和 -Output。' }
+    $source = (Resolve-Path -LiteralPath $Folder -ErrorAction Stop).Path
+    $sourceItem = Get-Item -LiteralPath $source -Force
+    if (-not $sourceItem.PSIsContainer -or ($sourceItem.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw '皮肤目录无效或为链接。' }
+    $target = [IO.Path]::GetFullPath($Output)
+    $parent = [IO.Path]::GetDirectoryName($target)
+    if ([IO.Path]::GetExtension($target) -ine '.zip' -or -not $parent -or -not (Test-Path -LiteralPath $parent -PathType Container) -or (Test-Path -LiteralPath $target)) { throw '分享路径必须是父目录已存在的新 ZIP 文件。' }
+    if ($target.StartsWith($source.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw '分享文件必须保存在作品文件夹之外。' }
+    if ((Get-Item -LiteralPath $parent -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw '输出父目录不能是链接。' }
+    $staging = Join-Path $parent ('.netpet-share-' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $staging | Out-Null
+    try {
+        $raw = Read-Limited (Join-Path $source 'skin.json') 16384
+        $manifest = [Text.UTF8Encoding]::new($false, $true).GetString($raw) | ConvertFrom-Json -AsHashtable
+        if ($null -eq $manifest -or $manifest.version -is [bool] -or $manifest.version -isnot [ValueType] -or $manifest.version -notin @(1,2,3)) { throw '版本必须为 1、2 或 3。' }
+        $names = if ($manifest.version -eq 1) { @($partsV1) } else { @($partsV2) }
+        if ($manifest.version -eq 3) { foreach ($flag in $extraParts.Keys) { if ($manifest[$flag]) { $names += $extraParts[$flag] } } }
+        [IO.File]::WriteAllBytes((Join-Path $staging 'skin.json'), $raw)
+        foreach ($name in $names) { [IO.File]::WriteAllBytes((Join-Path $staging $name), (Read-Limited (Join-Path $source $name) (8 * 1024 * 1024))) }
+        $checked = Inspect-Skin $staging $null
+        $temporary = Join-Path $staging 'share.tmp'
+        $stream = [IO.File]::Open($temporary, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+        try {
+            $archive = [IO.Compression.ZipArchive]::new($stream, [IO.Compression.ZipArchiveMode]::Create, $true)
+            try {
+                foreach ($name in (@('skin.json') + $names)) {
+                    $entry = $archive.CreateEntry($name, [IO.Compression.CompressionLevel]::Optimal)
+                    $entryStream = $entry.Open()
+                    try { $bytes = [IO.File]::ReadAllBytes((Join-Path $staging $name)); $entryStream.Write($bytes, 0, $bytes.Length) } finally { $entryStream.Dispose() }
+                }
+            } finally { $archive.Dispose() }
+        } finally { $stream.Dispose() }
+        [IO.File]::Move($temporary, $target)
+        [pscustomobject]@{ ok=$true; name=$checked.name; version=$checked.version; zip=$target; warnings=$checked.warnings }
+    } finally {
+        if (Test-Path -LiteralPath $staging -PathType Container) {
+            $resolved = (Resolve-Path -LiteralPath $staging).Path
+            if ([IO.Path]::GetDirectoryName($resolved) -ne $parent -or -not [IO.Path]::GetFileName($resolved).StartsWith('.netpet-share-') -or ((Get-Item -LiteralPath $resolved -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw '拒绝清理不安全的临时目录。' }
+            Remove-Item -LiteralPath $resolved -Recurse -Force
+        }
+    }
 } else {
     if (-not $Folder) { throw 'Validate 需要 -Folder。' }
     Inspect-Skin $Folder $Preview

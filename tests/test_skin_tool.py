@@ -6,6 +6,7 @@ import tempfile
 import unittest
 import os
 import shutil
+import zipfile
 
 from PIL import Image
 
@@ -16,6 +17,50 @@ FILES = ("hair.png", "body.png", "left.png", "right.png", "head.png", "ahoge.png
 class SkinToolTest(unittest.TestCase):
     def run_tool(self, *args):
         return subprocess.run([sys.executable, str(TOOL), *map(str, args)], capture_output=True, text=True, encoding="utf-8")
+
+    def test_share_all_versions_and_reject_invalid_or_existing_output(self):
+        extras = ('tail.png', 'wings.png', 'accessory.png', 'left-pressed.png', 'right-pressed.png')
+        pwsh = shutil.which('pwsh') or (str(Path.home() / '.dotnet/tools/pwsh.exe') if os.name == 'nt' else None)
+        def share(folder, output, powershell):
+            if powershell:
+                return subprocess.run([pwsh, '-NoProfile', '-File', str(TOOL.with_suffix('.ps1')), '-Action', 'Share', '-Folder', str(folder), '-Output', str(output)], capture_output=True, text=True, encoding='utf-8')
+            return self.run_tool('share', folder, '--output', output)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for version in (1, 2, 3):
+                folder = root / f'skin-{version}'
+                folder.mkdir()
+                for index, name in enumerate((*FILES, *extras)):
+                    Image.new('RGBA', (64, 80), (index, 40, 50, 128)).save(folder / name)
+                manifest = {'version': version, 'name': '作品'}
+                if version == 3:
+                    manifest.update(tail=True, wings=True, accessory=True, leftPressed=True, rightPressed=True)
+                (folder / 'skin.json').write_text(json.dumps(manifest, ensure_ascii=False), encoding='utf-8')
+                (folder / 'private-note.txt').write_text('do not share', encoding='utf-8')
+                before = {p.name: p.read_bytes() for p in folder.iterdir()}
+                expected = {'skin.json', *(FILES[:4] if version == 1 else FILES), *(extras if version == 3 else ())}
+                for powershell in ([False, True] if pwsh and os.name == 'nt' else [False]):
+                    label = 'ps' if powershell else 'py'
+                    output = root / f'{version}-{label}.zip'
+                    result = share(folder, output, powershell)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    with zipfile.ZipFile(output) as archive:
+                        self.assertEqual(set(archive.namelist()), expected)
+                        self.assertEqual(len(archive.namelist()), len(expected))
+                        for name in expected:
+                            self.assertEqual(archive.read(name), before[name])
+                    original = output.read_bytes()
+                    self.assertNotEqual(share(folder, output, powershell).returncode, 0)
+                    self.assertEqual(output.read_bytes(), original)
+                    self.assertNotEqual(share(folder, folder / 'inside.zip', powershell).returncode, 0)
+                    self.assertFalse((folder / 'inside.zip').exists())
+                self.assertEqual({p.name: p.read_bytes() for p in folder.iterdir()}, before)
+            (folder / 'left.png').write_bytes(b'invalid image')
+            for powershell in ([False, True] if pwsh and os.name == 'nt' else [False]):
+                output = root / ('bad-ps.zip' if powershell else 'bad-py.zip')
+                self.assertNotEqual(share(folder, output, powershell).returncode, 0)
+                self.assertFalse(output.exists())
+            self.assertFalse(list(root.glob('.netpet-share-*')))
 
     def test_prepare_validate_and_reject_bad_input(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 import sys
 import tempfile
+import zipfile
 
 try:
     from PIL import Image
@@ -91,8 +92,47 @@ def main():
     prepare.add_argument("--layers", type=Path, required=True)
     prepare.add_argument("--output", type=Path, required=True)
     prepare.add_argument("--name", required=True)
+    share = sub.add_parser("share")
+    share.add_argument("folder", type=Path)
+    share.add_argument("--output", type=Path, required=True, help="new ZIP outside the skin directory")
     args = parser.parse_args()
     try:
+        if args.command == "share":
+            source, target = args.folder, args.output.absolute()
+            if source.is_symlink() or not source.is_dir():
+                raise ValueError("skin directory missing or is a symlink")
+            if target.suffix.lower() != ".zip" or target.exists() or target.is_symlink() or not target.parent.is_dir() or target.parent.is_symlink():
+                raise ValueError("output must be a new ZIP in an existing non-linked directory")
+            if source.resolve() in target.resolve().parents:
+                raise ValueError("output must be outside the skin directory")
+            with tempfile.TemporaryDirectory(prefix=".netpet-share-", dir=target.parent) as temp:
+                draft = Path(temp) / "skin"
+                draft.mkdir()
+                manifest_path = source / "skin.json"
+                if manifest_path.is_symlink() or not manifest_path.is_file() or not 0 < manifest_path.stat().st_size <= 16384:
+                    raise ValueError("skin.json missing, linked, empty, or over 16 KiB")
+                raw = manifest_path.read_bytes()
+                data = json.loads(raw.decode("utf-8-sig"))
+                if not isinstance(data, dict) or type(data.get("version")) is not int or data["version"] not in (1, 2, 3):
+                    raise ValueError("version must be 1, 2 or 3")
+                names = list(V1 if data["version"] == 1 else V2)
+                if data["version"] == 3:
+                    names.extend(file for flag, file in EXTRAS.items() if data.get(flag, False))
+                (draft / "skin.json").write_bytes(raw)
+                for name in names:
+                    path = source / name
+                    if path.is_symlink() or not path.is_file() or not 0 < path.stat().st_size <= 8 * 1024 * 1024:
+                        raise ValueError(f"{name}: missing, linked, empty, or over 8 MiB")
+                    shutil.copyfile(path, draft / name)
+                data, size, _, warnings = inspect(draft)
+                temporary = Path(temp) / "share.tmp"
+                with zipfile.ZipFile(temporary, "x", compression=zipfile.ZIP_DEFLATED) as archive:
+                    for name in ["skin.json", *names]:
+                        archive.write(draft / name, name)
+                # Hard-link publication is atomic and never replaces an existing file.
+                os.link(temporary, target)
+            print(json.dumps({"ok": True, "name": data["name"], "version": data["version"], "zip": str(target), "size": size, "warnings": warnings}, ensure_ascii=False))
+            return 0
         if args.command == "prepare":
             if args.output.exists() or args.output.is_symlink():
                 raise ValueError("output already exists")
