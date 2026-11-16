@@ -9,6 +9,7 @@ param(
     [string]$Name,
     [string]$Folder,
     [string]$Preview,
+    [switch]$ArmsInFront,
     [ValidateSet('Neutral','LeftPressed','RightPressed','BothPressed')][string]$Pose = 'Neutral'
 )
 $ErrorActionPreference = 'Stop'
@@ -31,6 +32,7 @@ function Inspect-Skin([string]$Directory, [string]$PreviewPath) {
     $json = [Text.UTF8Encoding]::new($false, $true).GetString($raw) | ConvertFrom-Json -AsHashtable
     if ($null -eq $json -or $json.version -is [bool] -or $json.version -isnot [ValueType] -or $json.version -notin @(1,2,3)) { throw '版本必须为 1、2 或 3。' }
     if ($json.name -isnot [string] -or [string]::IsNullOrWhiteSpace($json.name) -or $json.name.Length -gt 40) { throw '名称不能为空且不得超过 40 个 UTF-16 单元。' }
+    if ($json.ContainsKey('armsInFront') -and $json.armsInFront -isnot [bool]) { throw 'armsInFront 必须为布尔值。' }
     if (($null -ne $json.characterId -and $json.characterId -cne '') -or ($null -ne $json.seriesId -and $json.seriesId -cne '')) {
         foreach ($value in @($json.characterId, $json.seriesId)) {
             if ($value -isnot [string] -or [string]::IsNullOrWhiteSpace($value) -or $value.Length -gt 40 -or $value -cne $value.Trim() -or $value -match '[\p{Cc}]') { throw 'characterId 和 seriesId 必须同时为有效标识。' }
@@ -43,13 +45,14 @@ function Inspect-Skin([string]$Directory, [string]$PreviewPath) {
         try { $number = [double]$value } catch { throw "关节坐标无效：$key" }
         if ([double]::IsNaN($number) -or [double]::IsInfinity($number) -or $number -lt 0 -or $number -gt 1) { throw "关节坐标超出 0–1：$key" }
     }
-    $names = if ($json.version -eq 1) { @($partsV1) } else { @($partsV2) }
+    $baseParts = if ($json.version -eq 1) { @($partsV1) } elseif ($json.armsInFront) { @('hair.png','body.png','head.png','ahoge.png','left.png','right.png') } else { @($partsV2) }
+    $names = $baseParts
     if ($json.version -eq 3) {
         $extra = $extraParts
         foreach ($key in $extra.Keys) { if ($json.ContainsKey($key) -and $json[$key] -isnot [bool]) { throw "图层标志无效：$key" } }
         $back = @(); foreach ($key in @('tail','wings')) { if ($json[$key]) { $back += $extra[$key] } }
         $front = @(); foreach ($key in @('accessory','leftPressed','rightPressed')) { if ($json[$key]) { $front += $extra[$key] } }
-        $names = $back + @($partsV2) + $front
+        $names = $back + $baseParts + $front
     }
     $width = 0; $height = 0; $composite = $null; $graphics = $null
     $warnings = [Collections.Generic.List[string]]::new()
@@ -118,6 +121,7 @@ if ($Action -eq 'Prepare') {
     try {
         foreach ($part in $partsV2) { [IO.File]::WriteAllBytes((Join-Path $staging $part), (Read-Limited (Join-Path $source $part) (8 * 1024 * 1024))) }
         $manifest = [ordered]@{version=2;name=$Name;leftPivotX=.32;armPivotY=.68;rightPivotX=.68;rightArmPivotY=.68;hairPivotX=.5;hairPivotY=.22;headPivotX=.5;headPivotY=.56;ahogePivotX=.5;ahogePivotY=.14}
+        if ($ArmsInFront) { $manifest['armsInFront'] = $true }
         foreach ($flag in $extraParts.Keys) {
             $part = $extraParts[$flag]
             if ($null -ne (Get-Item -LiteralPath (Join-Path $source $part) -Force -ErrorAction SilentlyContinue)) {

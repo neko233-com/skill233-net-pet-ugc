@@ -39,6 +39,8 @@ def inspect(folder):
     name = data.get("name")
     if not isinstance(name, str) or not name.strip() or len(name.encode("utf-16-le")) // 2 > 40:
         raise ValueError("name must be nonempty and at most 40 UTF-16 units")
+    if "armsInFront" in data and type(data["armsInFront"]) is not bool:
+        raise ValueError("armsInFront must be a boolean")
     character, series = data.get("characterId"), data.get("seriesId")
     if character not in (None, "") or series not in (None, ""):
         for value in (character, series):
@@ -92,6 +94,7 @@ def main():
     prepare.add_argument("--layers", type=Path, required=True)
     prepare.add_argument("--output", type=Path, required=True)
     prepare.add_argument("--name", required=True)
+    prepare.add_argument("--arms-in-front", action="store_true", help="draw arms in front of the head")
     share = sub.add_parser("share")
     share.add_argument("folder", type=Path)
     share.add_argument("--output", type=Path, required=True, help="new ZIP outside the skin directory")
@@ -156,6 +159,7 @@ def main():
                         shutil.copyfile(source, draft / name)
                         enabled[flag] = True
                 manifest = {"version": 3 if enabled else 2, "name": args.name, **PIVOTS, **enabled}
+                if args.arms_in_front: manifest["armsInFront"] = True
                 (draft / "skin.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
                 inspect(draft)
                 os.rename(draft, args.output)
@@ -171,7 +175,8 @@ def main():
             names = list(V1 if data['version'] == 1 else V2)
             if data['version'] == 3: names += [file for flag, file in EXTRAS.items() if data.get(flag, False)]
             indexed = dict(zip(names, layers))
-            for name in ('tail.png','wings.png',*V1,'head.png','ahoge.png','accessory.png'):
+            order = ('tail.png','wings.png','hair.png','body.png','head.png','ahoge.png','left.png','right.png','accessory.png') if data.get('armsInFront', False) else ('tail.png','wings.png',*V1,'head.png','ahoge.png','accessory.png')
+            for name in order:
                 if name == 'left.png' and args.pose in ('left-pressed', 'both-pressed') and 'left-pressed.png' in indexed:
                     name = 'left-pressed.png'
                 elif name == 'right.png' and args.pose in ('right-pressed', 'both-pressed') and 'right-pressed.png' in indexed:
