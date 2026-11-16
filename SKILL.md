@@ -1,6 +1,6 @@
 ---
 name: skill233-net-pet-ugc
-description: Create, check, preview, and import local layered dsdoll (formerly Net Pet) character skins. Use for dsdoll UGC creation or adaptation, not general image editing.
+description: Create, check, preview, and locally import dsdoll DIY characters and layered skins. Use for dsdoll UGC creation or adaptation, not general image editing.
 ---
 
 # Net Pet UGC
