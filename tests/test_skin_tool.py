@@ -7,6 +7,9 @@ import unittest
 import os
 import shutil
 import zipfile
+import importlib.util
+from types import SimpleNamespace
+from unittest import mock
 
 from PIL import Image
 
@@ -17,6 +20,20 @@ FILES = ("hair.png", "body.png", "left.png", "right.png", "head.png", "ahoge.png
 class SkinToolTest(unittest.TestCase):
     def run_tool(self, *args):
         return subprocess.run([sys.executable, str(TOOL), *map(str, args)], capture_output=True, text=True, encoding="utf-8")
+
+    def test_limited_read_rejects_growth_after_size_check(self):
+        spec = importlib.util.spec_from_file_location("skin_tool_under_test", TOOL)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "growing.png"
+            source.write_bytes(b"x" * 2048)
+            actual = os.stat(source)
+            stale = SimpleNamespace(st_mode=actual.st_mode, st_size=16,
+                                    st_file_attributes=getattr(actual, "st_file_attributes", 0))
+            with mock.patch.object(module.os, "fstat", return_value=stale):
+                with self.assertRaisesRegex(ValueError, "changed while reading"):
+                    module.read_limited(source, 1024)
 
     def test_share_all_versions_and_reject_invalid_or_existing_output(self):
         extras = ('tail.png', 'wings.png', 'accessory.png', 'left-pressed.png', 'right-pressed.png')

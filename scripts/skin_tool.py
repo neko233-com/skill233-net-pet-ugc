@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Prepare and inspect a Net Pet layered skin; never alter source artwork."""
 import argparse
+import io
 import json
 import unicodedata
 import math
 import os
 from pathlib import Path
-import shutil
+import stat
 import sys
 import tempfile
 import zipfile
@@ -26,6 +27,21 @@ EXTRA_PIVOTS = {"tailPivotX": .5, "tailPivotY": .75, "wingsPivotX": .5,
                 "wingsPivotY": .55, "accessoryPivotX": .5, "accessoryPivotY": .5}
 
 
+def read_limited(path, limit):
+    path = Path(path)
+    if path.is_symlink():
+        raise ValueError(f"{path.name}: linked file")
+    with path.open("rb") as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400
+                or not 0 < info.st_size <= limit):
+            raise ValueError(f"{path.name}: missing, linked, empty, or too large")
+        data = stream.read(limit + 1)
+        if len(data) != info.st_size or len(data) > limit:
+            raise ValueError(f"{path.name}: file changed while reading")
+        return data
+
+
 def inspect(folder):
     folder = Path(folder)
     if folder.is_symlink() or not folder.is_dir():
@@ -33,7 +49,7 @@ def inspect(folder):
     manifest = folder / "skin.json"
     if manifest.is_symlink() or not manifest.is_file() or not 0 < manifest.stat().st_size <= 16384:
         raise ValueError("skin.json missing, linked, empty, or over 16 KiB")
-    data = json.loads(manifest.read_text(encoding="utf-8-sig"))
+    data = json.loads(read_limited(manifest, 16384).decode("utf-8-sig"))
     if not isinstance(data, dict) or type(data.get("version")) is not int or data["version"] not in (1, 2, 3):
         raise ValueError("version must be 1, 2 or 3")
     name = data.get("name")
@@ -65,7 +81,7 @@ def inspect(folder):
         file = folder / name
         if file.is_symlink() or not file.is_file() or not 0 < file.stat().st_size <= 8 * 1024 * 1024:
             raise ValueError(f"{name}: missing, linked, empty, or over 8 MiB")
-        with Image.open(file) as img:
+        with Image.open(io.BytesIO(read_limited(file, 8 * 1024 * 1024))) as img:
             if img.format != "PNG":
                 raise ValueError(f"{name}: expected PNG")
             if not (64 <= img.width <= 2048 and 64 <= img.height <= 2048):
@@ -114,7 +130,7 @@ def main():
                 manifest_path = source / "skin.json"
                 if manifest_path.is_symlink() or not manifest_path.is_file() or not 0 < manifest_path.stat().st_size <= 16384:
                     raise ValueError("skin.json missing, linked, empty, or over 16 KiB")
-                raw = manifest_path.read_bytes()
+                raw = read_limited(manifest_path, 16384)
                 data = json.loads(raw.decode("utf-8-sig"))
                 if not isinstance(data, dict) or type(data.get("version")) is not int or data["version"] not in (1, 2, 3):
                     raise ValueError("version must be 1, 2 or 3")
@@ -126,12 +142,12 @@ def main():
                     path = source / name
                     if path.is_symlink() or not path.is_file() or not 0 < path.stat().st_size <= 8 * 1024 * 1024:
                         raise ValueError(f"{name}: missing, linked, empty, or over 8 MiB")
-                    shutil.copyfile(path, draft / name)
+                    (draft / name).write_bytes(read_limited(path, 8 * 1024 * 1024))
                 data, size, _, warnings = inspect(draft)
                 temporary = Path(temp) / "share.tmp"
                 with zipfile.ZipFile(temporary, "x", compression=zipfile.ZIP_DEFLATED) as archive:
                     for name in ["skin.json", *names]:
-                        archive.write(draft / name, name)
+                        archive.writestr(name, read_limited(draft / name, 16384 if name == "skin.json" else 8 * 1024 * 1024))
                 # Hard-link publication is atomic and never replaces an existing file.
                 os.link(temporary, target)
             print(json.dumps({"ok": True, "name": data["name"], "version": data["version"], "zip": str(target), "size": size, "warnings": warnings}, ensure_ascii=False))
@@ -147,7 +163,7 @@ def main():
                     source = args.layers / name
                     if source.is_symlink() or not source.is_file() or not 0 < source.stat().st_size <= 8 * 1024 * 1024:
                         raise ValueError(f"{name}: missing, linked, empty, or over 8 MiB")
-                    shutil.copyfile(source, draft / name)
+                    (draft / name).write_bytes(read_limited(source, 8 * 1024 * 1024))
                 enabled = {}
                 for flag, name in EXTRAS.items():
                     source = args.layers / name
@@ -156,7 +172,7 @@ def main():
                     if source.exists():
                         if not source.is_file() or not 0 < source.stat().st_size <= 8 * 1024 * 1024:
                             raise ValueError(f"{name}: expected a nonempty file up to 8 MiB")
-                        shutil.copyfile(source, draft / name)
+                        (draft / name).write_bytes(read_limited(source, 8 * 1024 * 1024))
                         enabled[flag] = True
                 manifest = {"version": 3 if enabled else 2, "name": args.name, **PIVOTS, **enabled}
                 if args.arms_in_front: manifest["armsInFront"] = True

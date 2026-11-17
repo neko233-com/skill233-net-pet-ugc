@@ -22,7 +22,19 @@ $pivots = @('leftPivotX','rightPivotX','armPivotY','rightArmPivotY','hairPivotX'
 function Read-Limited([string]$Path, [int]$Limit) {
     $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
     if ($item.PSIsContainer -or $item.Length -le 0 -or $item.Length -gt $Limit -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw "文件不存在、为空、过大或为链接：$Path" }
-    return ,([IO.File]::ReadAllBytes($item.FullName))
+    $stream = [IO.FileStream]::new($item.FullName, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+    try {
+        $length = $stream.Length
+        if ($length -le 0 -or $length -gt $Limit) { throw "文件为空或过大：$Path" }
+        $bytes = [byte[]]::new([int]$length); $offset = 0
+        while ($offset -lt $bytes.Length) {
+            $read = $stream.Read($bytes, $offset, $bytes.Length - $offset)
+            if ($read -eq 0) { throw "文件读取期间发生变化：$Path" }
+            $offset += $read
+        }
+        if ($stream.ReadByte() -ne -1) { throw "文件读取期间发生变化：$Path" }
+        return ,$bytes
+    } finally { $stream.Dispose() }
 }
 function Inspect-Skin([string]$Directory, [string]$PreviewPath) {
     $dir = (Resolve-Path -LiteralPath $Directory -ErrorAction Stop).Path
@@ -169,7 +181,7 @@ if ($Action -eq 'Prepare') {
                 foreach ($name in (@('skin.json') + $names)) {
                     $entry = $archive.CreateEntry($name, [IO.Compression.CompressionLevel]::Optimal)
                     $entryStream = $entry.Open()
-                    try { $bytes = [IO.File]::ReadAllBytes((Join-Path $staging $name)); $entryStream.Write($bytes, 0, $bytes.Length) } finally { $entryStream.Dispose() }
+                    try { $limit = if ($name -eq 'skin.json') { 16384 } else { 8 * 1024 * 1024 }; $bytes = Read-Limited (Join-Path $staging $name) $limit; $entryStream.Write($bytes, 0, $bytes.Length) } finally { $entryStream.Dispose() }
                 }
             } finally { $archive.Dispose() }
         } finally { $stream.Dispose() }
