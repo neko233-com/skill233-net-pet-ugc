@@ -24,4 +24,4 @@ $client = Join-Path $installDir 'tools/ugc/import-skin.ps1'
 & $client -Action CharacterUse -CharacterId '<32-character ID from import receipt>'
 ```
 
-Import is idempotent for the same request ID; activation uses an at-most-once marker and may return `unknown` after interruption. In that case inspect the actual desktop pet before sending a new activation request. A skin imported while a DIY character is active enters that character's own library; select the original built-in character first to use the legacy library. Do not treat a character ID as a player authentication credential.
+Import is idempotent for the same request ID; activation uses an at-most-once marker and may return `unknown` after interruption or an exception after dispatch. In that case inspect the actual desktop pet before sending a new activation request; do not retry automatically. A skin imported while a DIY character is active enters that character's own library; select the original built-in character first to use the legacy library. Do not treat a character ID as a player authentication credential.
