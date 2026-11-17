@@ -27,6 +27,14 @@ EXTRA_PIVOTS = {"tailPivotX": .5, "tailPivotY": .75, "wingsPivotX": .5,
                 "wingsPivotY": .55, "accessoryPivotX": .5, "accessoryPivotY": .5}
 
 
+def normalize_version(data):
+    value = data.get("version") if isinstance(data, dict) else None
+    if type(value) not in (int, float) or (type(value) is float and not math.isfinite(value)) or value not in (1, 2, 3):
+        raise ValueError("version must be 1, 2 or 3")
+    data["version"] = int(value)
+    return data
+
+
 def read_limited(path, limit):
     path = Path(path)
     if path.is_symlink():
@@ -49,9 +57,7 @@ def inspect(folder):
     manifest = folder / "skin.json"
     if manifest.is_symlink() or not manifest.is_file() or not 0 < manifest.stat().st_size <= 16384:
         raise ValueError("skin.json missing, linked, empty, or over 16 KiB")
-    data = json.loads(read_limited(manifest, 16384).decode("utf-8-sig"))
-    if not isinstance(data, dict) or type(data.get("version")) is not int or data["version"] not in (1, 2, 3):
-        raise ValueError("version must be 1, 2 or 3")
+    data = normalize_version(json.loads(read_limited(manifest, 16384).decode("utf-8-sig")))
     name = data.get("name")
     if not isinstance(name, str) or not name.strip() or len(name.encode("utf-16-le")) // 2 > 40:
         raise ValueError("name must be nonempty and at most 40 UTF-16 units")
@@ -131,9 +137,7 @@ def main():
                 if manifest_path.is_symlink() or not manifest_path.is_file() or not 0 < manifest_path.stat().st_size <= 16384:
                     raise ValueError("skin.json missing, linked, empty, or over 16 KiB")
                 raw = read_limited(manifest_path, 16384)
-                data = json.loads(raw.decode("utf-8-sig"))
-                if not isinstance(data, dict) or type(data.get("version")) is not int or data["version"] not in (1, 2, 3):
-                    raise ValueError("version must be 1, 2 or 3")
+                data = normalize_version(json.loads(raw.decode("utf-8-sig")))
                 names = list(V1 if data["version"] == 1 else V2)
                 if data["version"] == 3:
                     names.extend(file for flag, file in EXTRAS.items() if data.get(flag, False))

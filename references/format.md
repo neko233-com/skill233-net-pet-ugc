@@ -1,5 +1,7 @@
 # Layered skin format
 
+`skin.json` is UTF-8; a UTF-8 BOM is accepted and preserved when sharing. Integral numeric versions such as `2.0` are accepted for compatibility, although new manifests should use the integer form `2`.
+
 All PNG files use the same 64–2048 pixel canvas, share exactly the same dimensions, and are at most 8 MiB each. Use transparency around each part. Composite order is hair, body, left arm, right arm, head, ahoge. Body excludes head and arms in v2; paint hidden shoulder/neck areas to avoid gaps during rotations. Left and right mean the named image files and pivot assignments, so check the actual appearance rather than assuming screen versus character handedness.
 
 The UTF-8 `skin.json` is at most 16 KiB. Name is nonblank and at most 40 UTF-16 code units. Pivots are finite normalized coordinates in [0,1], measured from the canvas top-left. These values are starting points only:

@@ -36,12 +36,17 @@ function Read-Limited([string]$Path, [int]$Limit) {
         return ,$bytes
     } finally { $stream.Dispose() }
 }
+function Read-SkinManifest([byte[]]$Bytes) {
+    $text = [Text.UTF8Encoding]::new($false, $true).GetString($Bytes)
+    if ($text.Length -gt 0 -and $text[0] -eq [char]0xfeff) { $text = $text.Substring(1) }
+    return $text | ConvertFrom-Json -AsHashtable
+}
 function Inspect-Skin([string]$Directory, [string]$PreviewPath) {
     $dir = (Resolve-Path -LiteralPath $Directory -ErrorAction Stop).Path
     $dirItem = Get-Item -LiteralPath $dir -Force
     if (-not $dirItem.PSIsContainer -or ($dirItem.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw '皮肤目录无效或为链接。' }
     $raw = Read-Limited (Join-Path $dir 'skin.json') 16384
-    $json = [Text.UTF8Encoding]::new($false, $true).GetString($raw) | ConvertFrom-Json -AsHashtable
+    $json = Read-SkinManifest $raw
     if ($null -eq $json -or $json.version -is [bool] -or $json.version -isnot [ValueType] -or $json.version -notin @(1,2,3)) { throw '版本必须为 1、2 或 3。' }
     if ($json.name -isnot [string] -or [string]::IsNullOrWhiteSpace($json.name) -or $json.name.Length -gt 40) { throw '名称不能为空且不得超过 40 个 UTF-16 单元。' }
     if ($json.ContainsKey('armsInFront') -and $json.armsInFront -isnot [bool]) { throw 'armsInFront 必须为布尔值。' }
@@ -166,7 +171,7 @@ if ($Action -eq 'Prepare') {
     New-Item -ItemType Directory -Path $staging | Out-Null
     try {
         $raw = Read-Limited (Join-Path $source 'skin.json') 16384
-        $manifest = [Text.UTF8Encoding]::new($false, $true).GetString($raw) | ConvertFrom-Json -AsHashtable
+        $manifest = Read-SkinManifest $raw
         if ($null -eq $manifest -or $manifest.version -is [bool] -or $manifest.version -isnot [ValueType] -or $manifest.version -notin @(1,2,3)) { throw '版本必须为 1、2 或 3。' }
         $names = if ($manifest.version -eq 1) { @($partsV1) } else { @($partsV2) }
         if ($manifest.version -eq 3) { foreach ($flag in $extraParts.Keys) { if ($manifest[$flag]) { $names += $extraParts[$flag] } } }

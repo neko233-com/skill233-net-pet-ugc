@@ -21,6 +21,37 @@ class SkinToolTest(unittest.TestCase):
     def run_tool(self, *args):
         return subprocess.run([sys.executable, str(TOOL), *map(str, args)], capture_output=True, text=True, encoding="utf-8")
 
+    def test_bom_and_integral_decimal_version_match_both_tools(self):
+        pwsh = shutil.which('pwsh') or (str(Path.home() / '.dotnet/tools/pwsh.exe') if os.name == 'nt' else None)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skin = root / 'skin'
+            skin.mkdir()
+            for name in FILES:
+                Image.new('RGBA', (64, 80), (0, 0, 0, 0)).save(skin / name)
+            raw = b'\xef\xbb\xbf' + '{"version":2.0,"name":"作品"}'.encode('utf-8')
+            (skin / 'skin.json').write_bytes(raw)
+            runners = [False, True] if pwsh and os.name == 'nt' else [False]
+            for powershell in runners:
+                if powershell:
+                    validate = subprocess.run([pwsh, '-NoProfile', '-File', str(TOOL.with_suffix('.ps1')), '-Action', 'Validate', '-Folder', str(skin)], capture_output=True, text=True, encoding='utf-8')
+                    output = root / 'ps.zip'
+                    share = subprocess.run([pwsh, '-NoProfile', '-File', str(TOOL.with_suffix('.ps1')), '-Action', 'Share', '-Folder', str(skin), '-Output', str(output)], capture_output=True, text=True, encoding='utf-8')
+                else:
+                    validate = self.run_tool('validate', skin)
+                    output = root / 'py.zip'
+                    share = self.run_tool('share', skin, '--output', output)
+                self.assertEqual(validate.returncode, 0, validate.stderr)
+                self.assertEqual(share.returncode, 0, share.stderr)
+                with zipfile.ZipFile(output) as archive:
+                    self.assertEqual(archive.read('skin.json'), raw)
+            for value in ('2.5', 'true', '1e999'):
+                (skin / 'skin.json').write_text('{"version":' + value + ',"name":"x"}', encoding='utf-8')
+                self.assertNotEqual(self.run_tool('validate', skin).returncode, 0)
+                if pwsh and os.name == 'nt':
+                    invalid = subprocess.run([pwsh, '-NoProfile', '-File', str(TOOL.with_suffix('.ps1')), '-Action', 'Validate', '-Folder', str(skin)], capture_output=True, text=True, encoding='utf-8')
+                    self.assertNotEqual(invalid.returncode, 0)
+
     def test_limited_read_rejects_growth_after_size_check(self):
         spec = importlib.util.spec_from_file_location("skin_tool_under_test", TOOL)
         module = importlib.util.module_from_spec(spec)
