@@ -2,7 +2,7 @@
 
 A character is an independent local identity with a stable 32-character lowercase hexadecimal ID, name, optional description and optional click and idle lines. Its own skin library uses the existing validated v1–v3 layered skin format. The local profile is encrypted; its manually shared ZIP contains a plaintext profile and the active skins, so do not put secrets in the shared fields. Archived skins and local skin notes are not included in a character ZIP. The recipient must import the ZIP locally. No artwork is automatically uploaded.
 
-DIY characters currently appear only on the local desktop. Multiplayer peers see the built-in avatar; importing the same ZIP does not yet synchronize a DIY avatar between players.
+With current clients and the updated self-hosted Rust relay, a player's active DIY skin can appear to a peer who independently imports the identical skin or character package. Clients exchange a content fingerprint, not the artwork or character package; character profile text and dialogue are not synchronized. A peer without the matching work sees a built-in avatar and a missing-work notice. Steam carries the fingerprint but has not been verified with real Steam accounts. Do not claim that artworks are automatically uploaded or transferred.
 
 On Windows with PowerShell 7, create a new package from zero to 20 existing skin folders. The output must be a new path outside all source folders; preserve the original artwork.
 
